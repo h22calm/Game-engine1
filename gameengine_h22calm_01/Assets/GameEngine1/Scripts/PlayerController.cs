@@ -1,123 +1,101 @@
 using UnityEngine;
 
-
 public class PlayerController : MonoBehaviour
 {
-    [Header("캐릭터 설정")]
-    public string playerName = "플레이어";
+    [Header("이동 설정")]
     public float moveSpeed = 5.0f;
+    
+    [Header("점프 설정")]
+    public float jumpForce = 10.0f;
+    
+    private Rigidbody2D rb;
+    private bool isGrounded = false;
+    
 
-    // Animator 컴포넌트 참조 (private - Inspector에 안 보임)
-    private Animator animator;
-    private SpriteRenderer spriteRenderer;
-
-
-
-
+    // 리스폰용 시작 위치 - 새로 추가!
+    private Vector3 startPosition;
+    
     void Start()
-    {
-
-        // 게임 시작 시 한 번만 - Animator 컴포넌트 찾아서 저장
-        animator = GetComponent<Animator>();
-        spriteRenderer = GetComponent<SpriteRenderer>(); // 추가
-
-        // 캐릭터 소개
-        Debug.Log("안녕하세요, " + playerName + "님!");
-        Debug.Log("이동 속도: " + moveSpeed);
-
-
-        // 디버그: 제대로 찾았는지 확인
-        if (animator != null)
-        {
-            Debug.Log("Animator 컴포넌트를 찾았습니다!");
-        }
-        else
-        {
-            Debug.LogError("Animator 컴포넌트가 없습니다!");
-        }
-
-
-    }
-
-
+{
+    rb = GetComponent<Rigidbody2D>();
+    
+    // 게임 시작 시 위치를 저장 - 새로 추가!
+    startPosition = transform.position;
+    Debug.Log("시작 위치 저장: " + startPosition);
+}
+    
     void Update()
     {
-        // 이동 벡터 계산
-        Vector3 movement = Vector3.zero;
-
-        if (Input.GetKey(KeyCode.A))
+        // 좌우 이동
+        float moveX = 0f;
+        if (Input.GetKey(KeyCode.A)) moveX = -1f;
+        if (Input.GetKey(KeyCode.D)) moveX = 1f;
+        
+        rb.linearVelocity = new Vector2(moveX * moveSpeed, rb.linearVelocity.y);
+        
+        // 점프 (지난 시간에 배운 내용)
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
         {
-            movement += Vector3.left;
-
-
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
         }
+    }
 
-        if (Input.GetKey(KeyCode.D))
+    // 바닥 충돌 감지 (Collision)
+    void OnCollisionEnter2D(Collision2D collision)
+{
+	if (collision.gameObject.CompareTag("Ground"))
+	{
+		isGrounded = true;
+	}
+	// 장애물 충돌 시 생명 감소로 변경!
+	if (collision.gameObject.CompareTag("Obstacle"))
+	{
+		Debug.Log("⚠️ 장애물 충돌! 생명 -1");
+		// GameManager 찾아서 생명 감소
+		GameManager gameManager = FindObjectOfType<GameManager>();
+		
+		if (gameManager != null)
+		{
+			gameManager.TakeDamage(1);  // 생명 1 감소
+		}
+		
+		// 짧은 무적 시간 (0.5초 후 원래 위치로)
+		transform.position = startPosition;
+		rb.velocity = Vector2.zero;
+	}
+
+        
+    }
+    void OnCollisionExit2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
         {
-            movement += Vector3.right;
-
+            isGrounded = false;
         }
-
-        // 달리기 속도 계산
-        float currentMoveSpeed = moveSpeed;
-        if (Input.GetKey(KeyCode.LeftShift))
-        {
-            currentMoveSpeed = moveSpeed * 2f;
-            Debug.Log("달리기 모드 활성화!");
-        }
-
-    
-
-        // 점프 입력 (한 번만 실행되어야 하므로 GetKeyDown!)
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            if (animator != null)
-            {
-                animator.SetBool("isJumping", true);
-                Debug.Log("점프!");
-            }
-        }
-
-        if (Input.GetKeyUp(KeyCode.Space))
-        {
-            if (animator != null)
-            {
-                animator.SetBool("isJumping", false);
-                Debug.Log("점프");
-            }
-        }
-
-        // 방법 2: flipX (더 권장)
-        if (Input.GetKey(KeyCode.A))
-        {
-            spriteRenderer.flipX = true;
-        }
-        if (Input.GetKey(KeyCode.D))
-        {
-            spriteRenderer.flipX = false;
-        }
-
-        // 이동할 때 계산된 속도 사용
-        transform.Translate(movement * currentMoveSpeed * Time.deltaTime);
-
-        // 실제 이동 적용
-        if (movement != Vector3.zero)
-        {
-            transform.Translate(movement * moveSpeed * Time.deltaTime);
-        }
-
-        // 속도 계산: 이동 중이면 moveSpeed, 아니면 0
-        float currentSpeed = movement != Vector3.zero ? moveSpeed : 0f;
-
-        // Animator에 속도 전달
-        if (animator != null)
-        {
-            animator.SetFloat("Speed", currentSpeed);
-            Debug.Log("Current Speed: " + currentSpeed);
-        }
-
-
     }
     
+    void OnTriggerEnter2D(Collider2D other)
+{
+	// 코인 수집 (기존)
+	if (other.CompareTag("Coin"))
+	{
+		GameManager gameManager = FindObjectOfType<GameManager>();
+		if (gameManager != null)
+		{
+			gameManager.AddScore(10);
+		}
+		Destroy(other.gameObject);
+	}
+	// 골 도달 - 새로 추가!
+	if (other.CompareTag("Goal"))
+	{
+		Debug.Log("🎉 Goal Reached!");
+		GameManager gameManager = FindObjectOfType<GameManager>();
+		if (gameManager != null)
+		{
+			gameManager.GameClear();  // 게임 클리어 함수 호출
+		}
+	}
 }
-
+   
+}
